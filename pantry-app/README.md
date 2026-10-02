@@ -5,8 +5,8 @@ A shared pantry list for two phones. Track what food you have, where it's kept, 
 - **Where the data lives:** [Supabase](https://supabase.com), a free online database that also handles the logins and keeps both phones in sync.
 - **Where the app lives:** GitHub Pages, free hosting run by GitHub. It updates by itself whenever the code in this folder changes.
 
-> **Build progress:** Phase 1 (basic inventory) is done. Still to come: quick
-> actions and autocomplete (Phase 2), the "need to buy" list (Phase 3), and the
+> **Build progress:** Phase 1 (basic inventory) and Phase 2 (quick actions and
+> fast entry) are done. Still to come: the "need to buy" list (Phase 3), and the
 > meal-plan button plus a home-screen icon (Phase 4).
 
 ---
@@ -127,6 +127,18 @@ Try these on your phone:
 - [ ] **Sync test:** keep the app open on both phones. Add an item on one phone, and it should appear on the other within a few seconds.
 - [ ] Tap **Log out**, then log back in.
 
+## Testing Phase 2
+
+- [ ] On an item, tap **−1**. The amount goes down by one, and a message at the bottom shows how much is left.
+- [ ] Tap **Undo** in that message. The amount goes back.
+- [ ] Tap **Used up** on an item. It shows "Used up" in red, and its buttons disappear. (In Phase 3 these items will appear on the "need to buy" list.)
+- [ ] To restock a used-up item for now, tap it and type a new quantity.
+- [ ] Tap **＋** and type the first letters of something you've added before, for example `ri`. Suggestions appear under the name box; tap one. The name, unit and usual location fill in, and the cursor jumps to Quantity.
+- [ ] Type a full name you've used before (for example `rice`) and move to the next box. The unit and location fill in too.
+- [ ] If the item is already in your pantry, a note says so, with an **Open it** link to edit the existing entry instead of adding a duplicate.
+- [ ] Use **Save + next** to add several items in a row. The form stays open, keeps the same location, and clears the name.
+- [ ] Check that both phones see the −1 / Used up changes.
+
 ---
 
 ## Making changes later
@@ -145,6 +157,7 @@ Try these on your phone:
 | **"This account is not on the household list"** | The email you logged in with doesn't exactly match one from Step 2. Fix the email in `setup.sql` and run it again. |
 | **Page not found (404)** | Check Step 4 (Source = **GitHub Actions**) and Step 5 (merged into `main`). Then go to **Actions → Deploy pantry app → Run workflow**. |
 | **The Actions run has a red ❌** | Click it to see which step failed. Usually Pages isn't turned on yet (Step 4). Fix that, then click **Re-run all jobs**. |
+| **New buttons don't appear after an update** | Your phone may be showing the old version. Close the app fully, or pull down to refresh the page in the browser. |
 | **Changes don't show on the other phone** | Pull down or close and reopen the app. It refreshes every time it's opened. |
 | **Everything stopped working after a quiet spell** | Supabase's free plan *pauses* a project after about a week without use. Log in to supabase.com, open the project, and click **Restore**. Using the app regularly prevents this. |
 

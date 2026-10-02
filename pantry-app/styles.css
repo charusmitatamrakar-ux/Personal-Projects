@@ -64,6 +64,7 @@ code { background: var(--chip); padding: 0 4px; border-radius: 4px; }
 .row { display: flex; gap: 10px; align-items: flex-end; }
 .grow { flex: 1; min-width: 0; }
 .buttons { align-items: center; }
+.buttons .primary { order: 1; }
 
 /* ---------- Form controls ---------- */
 label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; color: var(--muted); }
@@ -90,6 +91,7 @@ button {
 }
 button.primary { background: var(--accent); color: var(--accent-text); font-weight: 600; }
 button.ghost { background: transparent; color: var(--accent); }
+button.secondary { background: var(--chip); color: var(--text); }
 button.danger { background: transparent; color: var(--danger); }
 button:disabled { opacity: 0.5; }
 
@@ -140,24 +142,68 @@ button:disabled { opacity: 0.5; }
   color: var(--muted);
   margin: 18px 4px 6px;
 }
+/* Card: name + date on the left (tap to edit), amount + quick buttons on the right */
 .item {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto;
   align-items: center;
-  gap: 12px;
-  width: 100%;
-  text-align: left;
+  column-gap: 10px;
+  row-gap: 6px;
   background: var(--card);
-  color: var(--text);
   border-radius: 12px;
   box-shadow: var(--shadow);
-  padding: 12px 14px;
+  padding: 8px 10px 8px 0;
   margin-bottom: 8px;
 }
-.item-main { flex: 1; min-width: 0; }
-.item-name { font-weight: 600; overflow-wrap: anywhere; }
-.item-sub { font-size: 0.8rem; color: var(--muted); }
-.item-qty { font-weight: 600; white-space: nowrap; }
-.item-qty.zero { color: var(--danger); }
+.item-open {
+  grid-row: 1 / span 2;
+  align-self: stretch;
+  text-align: left;
+  background: transparent;
+  color: var(--text);
+  padding: 4px 0 4px 14px;
+  min-width: 0;
+}
+.item-name { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.item-sub { display: block; font-size: 0.8rem; color: var(--muted); }
+.item-qty { font-weight: 600; white-space: nowrap; text-align: right; }
+.item-actions { display: flex; gap: 6px; justify-content: flex-end; }
+.item-actions button {
+  background: var(--chip);
+  color: var(--text);
+  font-size: 0.85rem;
+  padding: 6px 12px;
+  min-height: 36px;
+  min-width: 44px;
+}
+.item.used-up .item-name,
+.item.used-up .item-qty { color: var(--muted); }
+.item.used-up .item-qty { color: var(--danger); font-weight: 500; font-size: 0.85rem; }
+
+/* ---------- Name suggestions (autocomplete) ---------- */
+.name-field { display: flex; flex-direction: column; gap: 6px; }
+.suggestions {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+}
+.suggestions button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  color: var(--text);
+  padding: 8px 10px;
+  min-height: 44px;
+  border-radius: 8px;
+}
+.suggestions button:active { background: var(--chip); }
+.suggestions .sub { display: block; font-size: 0.8rem; color: var(--muted); }
+.hint { margin: 0; color: var(--muted); }
+.hint button { background: transparent; color: var(--accent); padding: 0 4px; min-height: 0; text-decoration: underline; }
 
 /* ---------- Floating add button ---------- */
 .fab {
@@ -204,4 +250,15 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.45); }
   border-radius: 10px;
   max-width: 90vw;
   z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.toast button {
+  background: transparent;
+  color: var(--bg);
+  font-weight: 700;
+  text-decoration: underline;
+  padding: 4px;
+  min-height: 0;
 }

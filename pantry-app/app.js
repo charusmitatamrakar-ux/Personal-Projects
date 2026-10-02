@@ -12,9 +12,11 @@
     user: null,
     items: [],
     locations: [],
+    memory: [],           // remembered names with their usual unit + location
     filter: 'all',        // 'all', NO_LOCATION, or a location id
     search: '',
     editingId: null,      // id of the item open in the dialog (null = adding)
+    touched: {},          // which form fields the person changed by hand
     channel: null,
   };
 
@@ -77,16 +79,19 @@
   // Loading data and live sync
   // ------------------------------------------------------------------
   async function loadAll() {
-    const [locRes, itemRes] = await Promise.all([
+    const [locRes, itemRes, memRes] = await Promise.all([
       sb.from('locations').select('*').order('sort_order').order('name'),
       sb.from('items').select('*').order('name'),
+      sb.from('item_memory').select('*').order('name'),
     ]);
-    if (locRes.error || itemRes.error) {
-      toast('Could not load: ' + (locRes.error || itemRes.error).message);
+    const failed = locRes.error || itemRes.error || memRes.error;
+    if (failed) {
+      toast('Could not load: ' + failed.message);
       return;
     }
     state.locations = locRes.data;
     state.items = itemRes.data;
+    state.memory = memRes.data;
     if (state.filter !== 'all' && state.filter !== NO_LOCATION &&
         !state.locations.some((l) => l.id === state.filter)) {
       state.filter = 'all';
@@ -172,16 +177,55 @@
   }
 
   function itemHtml(item) {
+    const usedUp = Number(item.quantity) === 0;
     return `
-      <button type="button" class="item" data-id="${esc(item.id)}">
-        <span class="item-main">
-          <span class="item-name">${esc(item.name)}</span><br>
+      <div class="item${usedUp ? ' used-up' : ''}" data-id="${esc(item.id)}">
+        <button type="button" class="item-open" aria-label="Edit ${esc(item.name)}">
+          <span class="item-name">${esc(item.name)}</span>
           <span class="item-sub">Added ${esc(formatDate(item.date_added))}</span>
+        </button>
+        <span class="item-qty">${usedUp ? 'Used up' : esc(formatQty(item))}</span>
+        <span class="item-actions">${usedUp ? '' : `
+          <button type="button" data-action="minus" aria-label="Use 1 ${esc(item.unit)}">−1</button>
+          <button type="button" data-action="used-up">Used up</button>`}
         </span>
-        <span class="item-qty${Number(item.quantity) === 0 ? ' zero' : ''}">
-          ${esc(formatQty(item))}
-        </span>
-      </button>`;
+      </div>`;
+  }
+
+  // ------------------------------------------------------------------
+  // Quick actions: −1 and "Used up" (both can be undone from the message)
+  // ------------------------------------------------------------------
+  async function quickAction(id, action) {
+    const item = state.items.find((i) => i.id === id);
+    if (!item) return;
+    const before = { quantity: item.quantity, need_to_buy: item.need_to_buy };
+    const quantity = action === 'used-up' ? 0 : Math.max(0, Number(item.quantity) - 1);
+    // Anything that runs out goes on the "need to buy" list.
+    const after = { quantity, need_to_buy: quantity === 0 ? true : item.need_to_buy };
+
+    const ok = await changeItem(id, after);
+    if (!ok) return;
+    const message = quantity === 0 ? `${item.name}: used up`
+                                   : `${item.name}: ${formatQty({ quantity, unit: item.unit })} left`;
+    toast(message, { label: 'Undo', run: () => changeItem(id, before) });
+  }
+
+  // Updates the screen straight away, then saves. Returns true if it saved.
+  async function changeItem(id, changes) {
+    // Look the item up each time: live sync may have reloaded the list.
+    const item = state.items.find((i) => i.id === id);
+    if (!item) return false;
+    const previous = { ...item };
+    Object.assign(item, changes);
+    render();
+    const { error } = await sb.from('items').update(changes).eq('id', item.id);
+    if (error) {
+      Object.assign(item, previous);
+      render();
+      toast('Could not save: ' + error.message);
+      return false;
+    }
+    return true;
   }
 
   // ------------------------------------------------------------------
@@ -191,9 +235,16 @@
     state.editingId = item ? item.id : null;
     $('item-dialog-title').textContent = item ? 'Edit item' : 'Add item';
     $('item-delete').hidden = !item;
+    $('item-save-next').hidden = !!item;
+    state.touched = {};
+    hideSuggestions();
+    $('name-hint').hidden = true;
 
+    // New items go in the location being viewed, otherwise the first location.
+    const firstLocation = state.locations[0] ? state.locations[0].id : '';
     fillLocationSelect(item ? item.location_id
-      : (state.filter !== 'all' && state.filter !== NO_LOCATION ? state.filter : ''));
+      : state.filter === 'all' ? firstLocation
+      : state.filter === NO_LOCATION ? '' : state.filter);
 
     $('item-name').value = item ? item.name : '';
     $('item-quantity').value = item ? item.quantity : 1;
@@ -211,9 +262,10 @@
       meta.hidden = !text;
     }
 
-    $('item-dialog').showModal();
+    if (!$('item-dialog').open) $('item-dialog').showModal();
     // When editing, don't pop up the phone keyboard straight away.
     if (item) document.activeElement.blur();
+    else $('item-name').focus();
   }
 
   function fillLocationSelect(selectedId) {
@@ -236,6 +288,7 @@
     if (!(row.quantity >= 0)) return toast('Quantity must be 0 or more.');
 
     const saveButton = event.submitter;
+    const addAnother = !state.editingId && saveButton && saveButton.value === 'next';
     if (saveButton) saveButton.disabled = true;
     const { error } = state.editingId
       ? await sb.from('items').update(row).eq('id', state.editingId)
@@ -243,9 +296,81 @@
     if (saveButton) saveButton.disabled = false;
 
     if (error) return toast('Could not save: ' + error.message);
+    await loadAll();
+    if (addAnother) {
+      // Keep the dialog open for the next item, in the same location.
+      openItemDialog(null);
+      $('item-location').value = row.location_id || '';
+      $('item-date').value = row.date_added;
+      toast(`Added ${row.name}`);
+      return;
+    }
     $('item-dialog').close();
     toast(state.editingId ? 'Saved' : `Added ${row.name}`);
-    await loadAll();
+  }
+
+  // ------------------------------------------------------------------
+  // Fast entry: suggest names typed before, and fill in their usual
+  // unit and location
+  // ------------------------------------------------------------------
+  const nameKey = (name) => name.trim().toLowerCase();
+
+  function updateSuggestions() {
+    updateNameHint();
+    const term = nameKey($('item-name').value);
+    if (state.editingId || !term) return hideSuggestions();
+
+    const matches = state.memory
+      .filter((m) => m.name_key.includes(term) && m.name_key !== term)
+      .sort((a, b) => (b.name_key.startsWith(term) - a.name_key.startsWith(term)) ||
+                      a.name_key.localeCompare(b.name_key))
+      .slice(0, 6);
+    if (!matches.length) return hideSuggestions();
+
+    $('name-suggestions').innerHTML = matches.map((m) => {
+      const details = [m.unit, locationName(m.location_id)].filter(Boolean).join(' · ');
+      return `<li><button type="button" data-key="${esc(m.name_key)}">${esc(m.name)}
+        ${details ? `<span class="sub">${esc(details)}</span>` : ''}</button></li>`;
+    }).join('');
+    $('name-suggestions').hidden = false;
+  }
+
+  function hideSuggestions() {
+    $('name-suggestions').hidden = true;
+    $('name-suggestions').innerHTML = '';
+  }
+
+  // Fill in the remembered unit and location (unless already changed by hand).
+  function applyMemory(memory) {
+    if (!memory || state.editingId) return;
+    if (!state.touched.unit) $('item-unit').value = memory.unit;
+    if (!state.touched.location && locationName(memory.location_id)) {
+      $('item-location').value = memory.location_id;
+    }
+  }
+
+  function pickSuggestion(key) {
+    const memory = state.memory.find((m) => m.name_key === key);
+    if (!memory) return;
+    $('item-name').value = memory.name;
+    hideSuggestions();
+    applyMemory(memory);
+    updateNameHint();
+    $('item-quantity').focus();
+    $('item-quantity').select();
+  }
+
+  // When adding something you already have, point to the existing entry.
+  function updateNameHint() {
+    const hint = $('name-hint');
+    const key = nameKey($('item-name').value);
+    const existing = key && state.items.find((i) => i.id !== state.editingId && nameKey(i.name) === key);
+    hint.hidden = !existing;
+    if (!existing) return;
+    const where = locationName(existing.location_id);
+    const amount = Number(existing.quantity) === 0 ? 'used up' : formatQty(existing);
+    hint.innerHTML = `Already in your pantry: ${esc(amount)}${where ? ' in ' + esc(where) : ''}.
+      <button type="button" data-id="${esc(existing.id)}">Open it</button>`;
   }
 
   async function deleteItem() {
@@ -362,12 +487,36 @@
 
     $('item-list').addEventListener('click', (e) => {
       const card = e.target.closest('.item');
-      if (card) openItemDialog(state.items.find((i) => i.id === card.dataset.id));
+      if (!card) return;
+      const actionButton = e.target.closest('[data-action]');
+      if (actionButton) quickAction(card.dataset.id, actionButton.dataset.action);
+      else if (e.target.closest('.item-open')) {
+        openItemDialog(state.items.find((i) => i.id === card.dataset.id));
+      }
     });
     $('add-item').addEventListener('click', () => openItemDialog(null));
     $('item-form').addEventListener('submit', saveItem);
     $('item-cancel').addEventListener('click', () => $('item-dialog').close());
     $('item-delete').addEventListener('click', deleteItem);
+
+    $('item-name').addEventListener('input', updateSuggestions);
+    $('item-name').addEventListener('change', () => {
+      applyMemory(state.memory.find((m) => m.name_key === nameKey($('item-name').value)));
+    });
+    $('item-name').addEventListener('blur', hideSuggestions);
+    $('item-name').addEventListener('keydown', (e) => { if (e.key === 'Escape') hideSuggestions(); });
+    // Stop the name box losing focus (and the list closing) before a tap registers.
+    $('name-suggestions').addEventListener('mousedown', (e) => e.preventDefault());
+    $('name-suggestions').addEventListener('click', (e) => {
+      const button = e.target.closest('[data-key]');
+      if (button) pickSuggestion(button.dataset.key);
+    });
+    $('name-hint').addEventListener('click', (e) => {
+      const button = e.target.closest('[data-id]');
+      if (button) openItemDialog(state.items.find((i) => i.id === button.dataset.id));
+    });
+    $('item-unit').addEventListener('input', () => { state.touched.unit = true; });
+    $('item-location').addEventListener('change', () => { state.touched.location = true; });
 
     $('open-locations').addEventListener('click', openLocationsDialog);
     $('locations-close').addEventListener('click', () => $('locations-dialog').close());
@@ -393,16 +542,25 @@
     for (const screen of document.querySelectorAll('.screen')) screen.hidden = screen.id !== id;
   }
 
+  // Short message at the bottom of the screen, optionally with a button
+  // such as { label: 'Undo', run: () => ... }.
   let toastTimer = null;
-  function toast(message) {
+  function toast(message, action) {
     const el = $('toast');
     // Put the message inside an open dialog so it isn't hidden behind it.
     const host = document.querySelector('dialog[open]') || document.body;
     if (el.parentElement !== host) host.appendChild(el);
-    el.textContent = message;
+    el.innerHTML = `<span>${esc(message)}</span>` +
+      (action ? `<button type="button">${esc(action.label)}</button>` : '');
+    if (action) {
+      el.querySelector('button').addEventListener('click', () => {
+        el.hidden = true;
+        action.run();
+      });
+    }
     el.hidden = false;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => { el.hidden = true; }, 2500);
+    toastTimer = setTimeout(() => { el.hidden = true; }, action ? 6000 : 2500);
   }
 
   function locationName(id) {
