@@ -55,6 +55,7 @@
 
     if (!user) {
       stopLiveSync();
+      clearSnapshot();
       state.items = [];
       state.locations = [];
       showScreen('login-screen');
@@ -62,11 +63,10 @@
     }
 
     const { data: isMember, error } = await sb.rpc('is_household_member');
-    if (error || !isMember) {
+    // A network error (no signal) is not a "no": carry on and show the saved list.
+    if (!error && !isMember) {
       showScreen('login-screen');
-      showLoginError(error
-        ? 'Could not check your account: ' + error.message
-        : 'This account is not on the household list (see README, Step 2).');
+      showLoginError('This account is not on the household list (see README, Step 2).');
       state.user = null;
       await sb.auth.signOut();
       return;
@@ -88,12 +88,23 @@
     ]);
     const failed = locRes.error || itemRes.error || memRes.error;
     if (failed) {
-      toast('Could not load: ' + failed.message);
+      const snapshot = readSnapshot();
+      if (snapshot && isNetworkError(failed)) {
+        state.locations = snapshot.locations;
+        state.items = snapshot.items;
+        state.memory = snapshot.memory;
+        showOfflineBanner(snapshot.savedAt);
+        render();
+      } else {
+        toast('Could not load: ' + errorText(failed));
+      }
       return;
     }
     state.locations = locRes.data;
     state.items = itemRes.data;
     state.memory = memRes.data;
+    saveSnapshot();
+    $('offline-banner').hidden = true;
     if (state.filter !== 'all' && state.filter !== NO_LOCATION &&
         !state.locations.some((l) => l.id === state.filter)) {
       state.filter = 'all';
@@ -299,6 +310,95 @@
   }
 
   // ------------------------------------------------------------------
+  // Meal planning: copy the inventory with a ready-made request for Claude
+  // ------------------------------------------------------------------
+  const NOTES_KEY = 'pantry-meal-notes';
+
+  function openMealDialog() {
+    $('meal-notes').value = storageGet(NOTES_KEY) || '';
+    $('meal-preview').textContent = mealPlanText();
+    $('meal-dialog').showModal();
+  }
+
+  function mealPlanText() {
+    const today = new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' });
+    const inStock = state.items.filter((i) => Number(i.quantity) > 0);
+
+    // Inventory grouped by storage location.
+    const groups = state.locations.map((loc) => ({ name: loc.name, items: inStock.filter((i) => i.location_id === loc.id) }));
+    groups.push({ name: 'Other', items: inStock.filter((i) => !locationName(i.location_id)) });
+    const inventory = groups.filter((g) => g.items.length).map((g) =>
+      `${g.name.toUpperCase()}\n` +
+      g.items.map((i) => `- ${i.name}: ${formatQty(i)} (added ${formatDate(i.date_added)})`).join('\n')
+    ).join('\n\n');
+
+    const toBuy = buyItems().map((i) => i.name);
+    const notes = $('meal-notes').value.trim();
+
+    return [
+      `Here is what I currently have at home (as of ${today}):`,
+      '',
+      inventory || '(Nothing in stock right now.)',
+      '',
+      'Please create a 7-day meal plan (breakfast, lunch and dinner) for 2 people that mainly uses these ingredients.',
+      '- Use up fresh and perishable items first, especially things added a while ago, so nothing goes to waste.',
+      '- Keep the recipes practical for everyday home cooking.',
+      '- For each day, list the meals and which of my ingredients each one uses.',
+      '- After the plan, give me a shopping list of anything extra I need, grouped by store section, with rough quantities.',
+      toBuy.length ? `\nThese are already on my shopping list, so include them only if the plan uses them: ${toBuy.join(', ')}.` : '',
+      notes ? `\nPlease also keep this in mind: ${notes}` : '',
+    ].filter((line, i, all) => line !== '' || all[i - 1] !== '').join('\n').trim();
+  }
+
+  function copyMealPlan() {
+    storageSet(NOTES_KEY, $('meal-notes').value.trim());
+    copyText(mealPlanText(), 'Copied! Now tap "Open Claude" and paste.');
+  }
+
+  // ------------------------------------------------------------------
+  // Offline: keep the last-loaded list on this phone so it can be viewed
+  // without signal. Changes still need a connection.
+  // ------------------------------------------------------------------
+  const SNAPSHOT_KEY = 'pantry-snapshot-v1';
+
+  function saveSnapshot() {
+    storageSet(SNAPSHOT_KEY, JSON.stringify({
+      savedAt: new Date().toISOString(),
+      items: state.items, locations: state.locations, memory: state.memory,
+    }));
+  }
+
+  function readSnapshot() {
+    try { return JSON.parse(storageGet(SNAPSHOT_KEY)); } catch (_) { return null; }
+  }
+
+  function clearSnapshot() {
+    try { localStorage.removeItem(SNAPSHOT_KEY); } catch (_) { /* ignore */ }
+  }
+
+  function showOfflineBanner(savedAt) {
+    $('offline-banner').textContent =
+      `You're offline. Showing the list from ${formatDateTime(savedAt)}. Changes need a connection.`;
+    $('offline-banner').hidden = false;
+  }
+
+  function isNetworkError(error) {
+    return /fetch|network|load failed|offline/i.test(String(error && error.message));
+  }
+
+  function errorText(error) {
+    return isNetworkError(error) ? "you're offline. Try again when you have signal." : error.message;
+  }
+
+  function storageGet(key) {
+    try { return localStorage.getItem(key); } catch (_) { return null; }
+  }
+
+  function storageSet(key, value) {
+    try { localStorage.setItem(key, value); } catch (_) { /* storage full or blocked */ }
+  }
+
+  // ------------------------------------------------------------------
   // Quick actions: −1 and "Used up" (both can be undone from the message)
   // ------------------------------------------------------------------
   async function quickAction(id, action) {
@@ -330,9 +430,10 @@
     if (error) {
       Object.assign(item, previous);
       render();
-      toast('Could not save: ' + error.message);
+      toast('Could not save: ' + errorText(error));
       return false;
     }
+    saveSnapshot();
     return true;
   }
 
@@ -421,7 +522,7 @@
       : await sb.from('items').insert(row);
     if (saveButton) saveButton.disabled = false;
 
-    if (error) return toast('Could not save: ' + error.message);
+    if (error) return toast('Could not save: ' + errorText(error));
     await loadAll();
     if (addAnother) {
       // Keep the dialog open for the next item, in the same location.
@@ -503,7 +604,7 @@
     const item = state.items.find((i) => i.id === state.editingId);
     if (!item || !confirm(`Delete "${item.name}"?`)) return;
     const { error } = await sb.from('items').delete().eq('id', item.id);
-    if (error) return toast('Could not delete: ' + error.message);
+    if (error) return toast('Could not delete: ' + errorText(error));
     $('item-dialog').close();
     toast(`Deleted ${item.name}`);
     await loadAll();
@@ -561,13 +662,13 @@
       : `Delete "${loc.name}"?`;
     if (!confirm(question)) return;
     const { error } = await sb.from('locations').delete().eq('id', id);
-    if (error) return toast('Could not delete: ' + error.message);
+    if (error) return toast('Could not delete: ' + errorText(error));
     await loadAll();
   }
 
   function friendlyLocationError(error) {
     return error.code === '23505' ? 'A location with that name already exists.'
-                                  : 'Could not save: ' + error.message;
+                                  : 'Could not save: ' + errorText(error);
   }
 
   // ------------------------------------------------------------------
@@ -584,8 +685,9 @@
     });
     if (button) button.disabled = false;
     if (error) {
-      showLoginError(error.message === 'Invalid login credentials'
-        ? 'Wrong email or password.' : error.message);
+      showLoginError(error.message === 'Invalid login credentials' ? 'Wrong email or password.'
+        : isNetworkError(error) ? "You're offline. Logging in needs a connection."
+        : error.message);
     } else {
       $('login-password').value = '';
     }
@@ -626,6 +728,12 @@
       else if (actionButton.dataset.action === 'remove') removeFromList(item.id);
     });
     $('copy-buy-list').addEventListener('click', copyBuyList);
+
+    $('open-meal-plan').addEventListener('click', openMealDialog);
+    $('meal-notes').addEventListener('input', () => { $('meal-preview').textContent = mealPlanText(); });
+    $('meal-copy').addEventListener('click', copyMealPlan);
+    $('meal-close').addEventListener('click', () => $('meal-dialog').close());
+    window.addEventListener('online', () => { if (state.user) loadAll(); });
     $('restock-form').addEventListener('submit', saveRestock);
     $('restock-cancel').addEventListener('click', () => $('restock-dialog').close());
 
@@ -649,7 +757,10 @@
 
     $('item-name').addEventListener('input', updateSuggestions);
     $('item-name').addEventListener('change', () => {
-      applyMemory(state.memory.find((m) => m.name_key === nameKey($('item-name').value)));
+      const memory = state.memory.find((m) => m.name_key === nameKey($('item-name').value));
+      // Typed a known name in full: use its usual spelling, unit and location.
+      if (memory && !state.editingId) $('item-name').value = memory.name;
+      applyMemory(memory);
     });
     $('item-name').addEventListener('blur', hideSuggestions);
     $('item-name').addEventListener('keydown', (e) => { if (e.key === 'Escape') hideSuggestions(); });

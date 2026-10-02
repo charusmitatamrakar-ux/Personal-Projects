@@ -1,17 +1,60 @@
 # 🥫 Pantry
 
-A shared pantry list for two phones. Track what food you have, where it's kept, and how much is left.
+A shared pantry list for two phones. Track what food you have, where it's kept and what needs buying, and get Claude to plan meals from what's already at home.
+
+**Open the app:** https://charusmitatamrakar-ux.github.io/Personal-Projects/
 
 - **Where the data lives:** [Supabase](https://supabase.com), a free online database that also handles the logins and keeps both phones in sync.
-- **Where the app lives:** GitHub Pages, free hosting run by GitHub. It updates by itself whenever the code in this folder changes.
+- **Where the app lives:** GitHub Pages, free hosting run by GitHub. It updates by itself whenever the code in this folder changes on `main`.
 
-> **Build progress:** Phases 1–3 are done: basic inventory, quick actions and
-> fast entry, and the "To buy" list. Still to come: the meal-plan button plus a
-> home-screen icon (Phase 4).
+**Contents:** [Using the app](#using-the-app) · [Put it on your home screen](#put-it-on-your-home-screen) · [One-time setup](#one-time-setup-about-30-minutes) · [Checking everything works](#checking-everything-works) · [Making changes later](#making-changes-later) · [Troubleshooting](#troubleshooting)
+
+---
+
+## Using the app
+
+### Your pantry
+- **Add an item:** tap **＋**. Start typing a name and suggestions from things you've added before appear underneath. Tap one, and its usual unit and location fill in. **Save + next** keeps the form open for adding several items in a row.
+- **Used some:** tap **−1** on the item. Ran out: tap **Used up**. Mis-tapped? Tap **Undo** in the message at the bottom.
+- **Change or delete an item:** tap its name.
+- **Find things:** use the search box, or the location buttons (Pantry shelf, Fridge, …) to see one place at a time.
+- **Your own locations:** tap **Locations** at the top to add, rename or delete them.
+
+### The "To buy" list
+- Items land on the **To buy** tab by themselves when they're **used up**, or when they drop to their **low level**. Set a low level in an item's edit form, for example "rice: 1 kg".
+- You can also add something by hand: edit the item and tick **On the "To buy" list**.
+- At the shop, tap **✓ Bought** and enter how much you bought. It's added to what you had, and the item leaves the list.
+- **✕** takes something off the list without buying it. **Copy list** copies it as text to send to each other.
+
+### Plan meals with Claude
+1. On the **Pantry** tab, tap **🍽 Plan meals**.
+2. Optionally, type a note for Claude, such as "vegetarian, quick weekday dinners". It's remembered on that phone.
+3. Tap **Copy**, then **Open Claude**, and paste into a new chat.
+
+What gets copied: everything currently in stock, grouped by location with the date each item was added, plus a request for a **7-day meal plan for 2 people** that uses older and perishable food first, and a **shopping list** of extras. It also mentions what's already on your To buy list. Tap **Preview what gets copied** to see the exact text.
+
+### Two phones
+Changes made on one phone show up on the other within a few seconds. Each of you logs in with your own email, and the edit form shows who added or last changed an item.
+
+### No signal?
+The app still opens and shows **the list as it was the last time it loaded**, with a yellow "You're offline" note. Viewing works, but changes need a connection. When signal comes back, the app catches up by itself.
+
+---
+
+## Put it on your home screen
+
+Then it opens like a normal app, full-screen with its own icon:
+
+- **iPhone (Safari):** open the app's address, tap **Share** (the square with an arrow), then **Add to Home Screen**, then **Add**.
+- **Android (Chrome):** open the app's address, tap **⋮**, then **Add to Home screen** or **Install app**.
+
+If you added it before the icon existed, delete the old shortcut and add it again to get the new icon.
 
 ---
 
 ## One-time setup (about 30 minutes)
+
+> ✅ You've already done this. It's kept here in case you ever need to set it up again, for example on a new Supabase project.
 
 You only need a web browser, ideally on a computer for this part. The steps go in this order:
 
@@ -60,7 +103,7 @@ This creates the tables, the starter locations (Pantry shelf, Fridge, Freezer, B
 4. Do the same for your husband's email.
 5. **Block everyone else from signing up.** Still in **Authentication**, open **Sign In / Providers** (on some accounts it's under **Settings**). Turn **off** **Allow new users to sign up**, then click **Save**.
 
-> To change a password later, go to Authentication → Users, click the **⋯** next to the person, and choose the reset or update option.
+> Adding your email in Step 2 only puts it on the *allowed* list. The login itself must be created here, with a password, or you'll get "Wrong email or password".
 
 ### Step 4: Turn on GitHub Pages
 
@@ -71,11 +114,10 @@ That's all here. Nothing needs saving.
 
 ### Step 5: Put the app on the `main` branch
 
-The app was built on a separate *branch* (a working copy). To publish it, merge it into `main`:
+New code arrives on a separate *branch* (a working copy) through a **pull request**. To publish it, merge it into `main`:
 
-1. On the repository page, click the **Pull requests** tab.
-2. Open the pull request for the pantry app. If there isn't one, GitHub usually shows a yellow **Compare & pull request** banner. Click it, then click **Create pull request**.
-3. Click **Merge pull request**, then **Confirm merge**.
+1. On the repository page, click the **Pull requests** tab, and open the pull request.
+2. Click **Merge pull request**, then **Confirm merge**.
 
 ### Step 6: Connect the app to Supabase
 
@@ -98,85 +140,76 @@ Saving this starts the publishing process automatically. To watch it, click the 
 
 ### Step 7: Open it on your phones
 
-Your app's address is:
-
-**https://charusmitatamrakar-ux.github.io/Personal-Projects/**
-
-(You can also find it under Settings → Pages.) Open it on each phone and log in. You only need to log in once on each phone.
-
-**Add it to your home screen:**
-- **iPhone (Safari):** tap **Share** (the square with an arrow), then **Add to Home Screen**.
-- **Android (Chrome):** tap **⋮**, then **Add to Home screen** (or **Install app**).
-
-Phase 4 adds a proper app icon and full-screen mode.
+Open **https://charusmitatamrakar-ux.github.io/Personal-Projects/** on each phone, log in once, and [put it on your home screen](#put-it-on-your-home-screen).
 
 ---
 
-## Testing Phase 1
+## Checking everything works
 
-Try these on your phone:
+Go through this list after setting up, or after a big update.
 
-- [ ] Log in with your email and password.
-- [ ] Tap **＋**, add "Rice, 2, kg, Pantry shelf", and tap **Save**. It appears under *Pantry shelf*.
-- [ ] Add a couple more items in different locations.
-- [ ] Tap a location button (for example **Fridge**). Only fridge items show. Tap **All** to see everything again.
-- [ ] Type in the search box. The list narrows as you type.
-- [ ] Tap an item, change the quantity, and **Save**. The new amount shows.
-- [ ] Tap an item, then **Delete**. It's gone.
-- [ ] Tap **Locations**: add "Garage", rename "Basement", and delete one. Items from a deleted location move to "No location" and aren't lost.
-- [ ] **Sync test:** keep the app open on both phones. Add an item on one phone, and it should appear on the other within a few seconds.
-- [ ] Tap **Log out**, then log back in.
+**Basics**
+- [ ] Log in. Add "Rice, 2, kg, Pantry shelf". It appears under *Pantry shelf*.
+- [ ] Location buttons and the search box narrow the list.
+- [ ] Tap an item, change the amount, and **Save**. Then try **Delete** on a test item.
+- [ ] **Locations:** add, rename and delete one. Items from a deleted location move to "No location".
+- [ ] **Sync:** with the app open on both phones, add an item on one. It appears on the other within a few seconds.
 
-## Testing Phase 2
+**Quick actions and fast entry**
+- [ ] **−1** lowers the amount, and **Undo** in the message puts it back.
+- [ ] Tap **＋** and type `ri`. "Rice" is suggested. Tap it, and the unit and location fill in.
+- [ ] Adding something you already have shows "Already in your pantry" with an **Open it** link.
+- [ ] **Save + next** keeps the form open for the next item.
 
-- [ ] On an item, tap **−1**. The amount goes down by one, and a message at the bottom shows how much is left.
-- [ ] Tap **Undo** in that message. The amount goes back.
-- [ ] Tap **Used up** on an item. It shows "Used up" in red, and its buttons disappear. It also goes on the **To buy** list (see Phase 3).
-- [ ] Tap **＋** and type the first letters of something you've added before, for example `ri`. Suggestions appear under the name box; tap one. The name, unit and usual location fill in, and the cursor jumps to Quantity.
-- [ ] Type a full name you've used before (for example `rice`) and move to the next box. The unit and location fill in too.
-- [ ] If the item is already in your pantry, a note says so, with an **Open it** link to edit the existing entry instead of adding a duplicate.
-- [ ] Use **Save + next** to add several items in a row. The form stays open, keeps the same location, and clears the name.
-- [ ] Check that both phones see the −1 / Used up changes.
+**To buy**
+- [ ] **Used up** puts the item on the **To buy** tab, and the tab shows a red number.
+- [ ] Give Rice a **Low level** of `1`, then tap **−1** until it reaches 1 kg. It joins the list, and the message says "added to To buy".
+- [ ] **✓ Bought** with an amount adds it back, and the item leaves the list. **✕** removes it without buying.
+- [ ] **Copy list** and paste it into a message.
 
-## Testing Phase 3
+**Meal planning**
+- [ ] **🍽 Plan meals**, add a note, then **Copy** and **Open Claude**. Paste, and Claude replies with a 7-day plan and a shopping list.
+- [ ] Open **Plan meals** again. Your note is still there.
 
-- [ ] Tap **Used up** on an item, then open the **To buy** tab. The item is listed there, and the tab shows a red number.
-- [ ] Tap **✓ Bought**, enter how much you bought, and tap **Add to pantry**. It leaves the list, the amount is added to what you had, and "Date added" becomes today. **Undo** puts everything back.
-- [ ] Tap **✕** on an item in the list. It comes off the list without changing the amount, for when you've decided not to buy it.
-- [ ] **Low level:** edit an item, for example Rice at 2 kg, and set **Low level** to `1`. Tap **−1**. Now at 1 kg, it goes on the list automatically, and the message says "added to To buy".
-- [ ] In the edit form, the **On the "To buy" list** box ticks and unticks itself as you change the amounts. You can also tick it by hand to add something you're running low on.
-- [ ] On the **To buy** tab, tap **Copy list**, then paste it into a text message or notes app.
-- [ ] Check that both phones see the same list.
+**Home screen and offline**
+- [ ] Add the app to your home screen. It has the green jar icon and opens full-screen.
+- [ ] Open the app once with signal. Then turn on aeroplane mode and open it again: you see the yellow "offline" note and your list. Turn aeroplane mode off and the note goes away.
 
 ---
 
 ## Making changes later
 
-- **Change a setting or text:** open the file on GitHub, click the pencil, edit, and **Commit changes**. The site updates by itself in 1–2 minutes. On your phone, close and reopen the app to see the change.
+- **Getting updates from Claude:** Claude puts changes on a branch and opens a pull request. Merge it (see Step 5), wait for the green tick in **Actions**, then fully close and reopen the app on both phones.
+- **Small edits yourself:** open the file on GitHub, click the pencil, edit, and **Commit changes**. The site updates by itself in 1–2 minutes.
 - **Add or remove someone's access:** change the emails in `supabase/setup.sql` and run it again in the SQL Editor. It's safe to re-run. To *remove* someone, also run this, using their email:
   `delete from public.household_members where email = 'old@example.com';`
   Then also delete their login under Authentication → Users.
+- **Change a password:** Supabase → Authentication → Users → the **⋯** next to the person.
 
 ## Troubleshooting
 
 | What you see | What to do |
 |---|---|
 | **"Almost there – the app isn't connected"** | `config.js` still has the placeholders, or the publish hasn't finished. Redo Step 6 and check the **Actions** tab for a green tick. |
-| **"Wrong email or password"** | Check the login in Supabase → Authentication → Users. You can set a new password there. |
+| **"Wrong email or password"** | Check that the login exists in Supabase → Authentication → Users (Step 3). You can set a new password there. |
 | **"This account is not on the household list"** | The email you logged in with doesn't exactly match one from Step 2. Fix the email in `setup.sql` and run it again. |
+| **Yellow "You're offline" note** | The phone has no connection to the internet or to Supabase. You're seeing the last saved list, and changes will work once you're back online. If you *do* have signal, see the "quiet spell" row below. |
 | **Page not found (404)** | Check Step 4 (Source = **GitHub Actions**) and Step 5 (merged into `main`). Then go to **Actions → Deploy pantry app → Run workflow**. |
 | **The Actions run has a red ❌** | Click it to see which step failed. Usually Pages isn't turned on yet (Step 4). Fix that, then click **Re-run all jobs**. |
-| **New buttons don't appear after an update** | Your phone may be showing the old version. Close the app fully, or pull down to refresh the page in the browser. |
-| **Changes don't show on the other phone** | Pull down or close and reopen the app. It refreshes every time it's opened. |
+| **New buttons don't appear after an update** | Fully close the app (swipe it away) and open it again. If that doesn't work, open it once in the normal browser and pull down to refresh. |
+| **"Copy" doesn't copy** | Some phones block copying from home-screen apps. Open **Preview what gets copied**, press and hold the text, and copy it by hand. |
+| **Changes don't show on the other phone** | Close and reopen the app. It refreshes every time it's opened. |
 | **Everything stopped working after a quiet spell** | Supabase's free plan *pauses* a project after about a week without use. Log in to supabase.com, open the project, and click **Restore**. Using the app regularly prevents this. |
 
 ## What's in this folder
 
 | File | What it does |
 |---|---|
-| `index.html` | The screens: login, list, add/edit form. |
+| `index.html` | The screens: login, pantry, To buy, and the forms. |
 | `styles.css` | Colours and layout. Dark mode follows your phone's setting. |
 | `app.js` | Everything the app does. |
 | `config.js` | Your Supabase address and key. **The only file you need to edit.** |
+| `manifest.webmanifest`, `icons/` | The app's name and icon for home screens. |
+| `sw.js` | Keeps a copy of the app on the phone so it opens without signal. |
 | `supabase/setup.sql` | Creates the database. Run once in Supabase. |
 | `../.github/workflows/deploy-pantry-app.yml` | Tells GitHub how to publish the app. |
