@@ -61,6 +61,7 @@ code { background: var(--chip); padding: 0 4px; border-radius: 4px; }
 .error { color: var(--danger); margin: 0; }
 
 .stack { display: flex; flex-direction: column; gap: 14px; }
+.stack > p { margin: 0; }
 .row { display: flex; gap: 10px; align-items: flex-end; }
 .grow { flex: 1; min-width: 0; }
 .buttons { align-items: center; }
@@ -179,6 +180,46 @@ button:disabled { opacity: 0.5; }
 .item.used-up .item-name,
 .item.used-up .item-qty { color: var(--muted); }
 .item.used-up .item-qty { color: var(--danger); font-weight: 500; font-size: 0.85rem; }
+
+/* ---------- Tabs ---------- */
+.tabs {
+  display: flex;
+  background: var(--chip);
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 8px;
+}
+.tabs button {
+  flex: 1;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  min-height: 40px;
+  padding: 6px;
+}
+.tabs button[aria-selected="true"] { background: var(--card); color: var(--text); box-shadow: var(--shadow); }
+.badge {
+  display: inline-block;
+  min-width: 22px;
+  padding: 0 6px;
+  margin-left: 4px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.8rem;
+  line-height: 22px;
+}
+.on-list { font-size: 0.8rem; color: var(--danger); white-space: nowrap; }
+
+/* ---------- To-buy list ---------- */
+.buy-header { align-items: center; margin: 4px 0 8px; }
+.buy-header p { margin: 0; font-size: 0.85rem; }
+.buy-header button { min-height: 36px; padding: 6px 12px; font-size: 0.9rem; }
+.buy-item .item-actions { grid-row: 1 / span 2; }
+.buy-item .item-actions button[data-action="bought"] { background: var(--accent); color: var(--accent-text); font-weight: 600; }
+.unit-label { align-self: center; color: var(--text); white-space: nowrap; }
+label.check { flex-direction: row; align-items: center; gap: 10px; color: var(--text); font-size: 1rem; }
+label.check input { width: 22px; height: 22px; min-height: 0; accent-color: var(--accent); }
 
 /* ---------- Name suggestions (autocomplete) ---------- */
 .name-field { display: flex; flex-direction: column; gap: 6px; }

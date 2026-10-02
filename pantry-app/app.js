@@ -13,10 +13,12 @@
     items: [],
     locations: [],
     memory: [],           // remembered names with their usual unit + location
+    view: 'pantry',       // which tab is showing: 'pantry' or 'buy'
     filter: 'all',        // 'all', NO_LOCATION, or a location id
     search: '',
     editingId: null,      // id of the item open in the dialog (null = adding)
     touched: {},          // which form fields the person changed by hand
+    restockId: null,      // id of the item open in the "Bought" dialog
     channel: null,
   };
 
@@ -127,6 +129,24 @@
   function render() {
     renderFilters();
     renderItems();
+    renderBuyList();
+    renderTabs();
+  }
+
+  function setView(view) {
+    state.view = view;
+    $('pantry-view').hidden = view !== 'pantry';
+    $('buy-view').hidden = view !== 'buy';
+    window.scrollTo(0, 0);
+    renderTabs();
+  }
+
+  function renderTabs() {
+    const count = buyItems().length;
+    $('tab-buy').innerHTML = 'To buy' + (count ? `<span class="badge">${count}</span>` : '');
+    for (const tab of document.querySelectorAll('.tabs [data-view]')) {
+      tab.setAttribute('aria-selected', String(tab.dataset.view === state.view));
+    }
   }
 
   function renderFilters() {
@@ -182,7 +202,8 @@
       <div class="item${usedUp ? ' used-up' : ''}" data-id="${esc(item.id)}">
         <button type="button" class="item-open" aria-label="Edit ${esc(item.name)}">
           <span class="item-name">${esc(item.name)}</span>
-          <span class="item-sub">Added ${esc(formatDate(item.date_added))}</span>
+          <span class="item-sub">Added ${esc(formatDate(item.date_added))}${item.need_to_buy
+            ? ' · <span class="on-list">on To buy list</span>' : ''}</span>
         </button>
         <span class="item-qty">${usedUp ? 'Used up' : esc(formatQty(item))}</span>
         <span class="item-actions">${usedUp ? '' : `
@@ -193,6 +214,91 @@
   }
 
   // ------------------------------------------------------------------
+  // "To buy" list
+  // ------------------------------------------------------------------
+
+  // An item needs buying when it has run out, or dropped to its low level.
+  function needsBuying(quantity, lowLevel) {
+    return Number(quantity) === 0 ||
+      (lowLevel !== null && lowLevel !== undefined && lowLevel !== '' &&
+       Number(quantity) <= Number(lowLevel));
+  }
+
+  function buyItems() {
+    return state.items.filter((i) => i.need_to_buy);
+  }
+
+  function renderBuyList() {
+    const items = buyItems();
+    $('buy-list').innerHTML = items.map((item) => {
+      const usedUp = Number(item.quantity) === 0;
+      const details = [usedUp ? 'Used up' : `${formatQty(item)} left`, locationName(item.location_id)]
+        .filter(Boolean).join(' · ');
+      return `
+        <div class="item buy-item${usedUp ? ' used-up' : ''}" data-id="${esc(item.id)}">
+          <button type="button" class="item-open" aria-label="Edit ${esc(item.name)}">
+            <span class="item-name">${esc(item.name)}</span>
+            <span class="item-sub">${esc(details)}</span>
+          </button>
+          <span class="item-actions">
+            <button type="button" data-action="bought">✓ Bought</button>
+            <button type="button" data-action="remove" aria-label="Take ${esc(item.name)} off the list">✕</button>
+          </span>
+        </div>`;
+    }).join('');
+    $('buy-summary').textContent = items.length
+      ? `${items.length} item${items.length === 1 ? '' : 's'} to buy` : '';
+    $('copy-buy-list').hidden = !items.length;
+    $('buy-empty').hidden = items.length > 0;
+  }
+
+  function openRestockDialog(item) {
+    state.restockId = item.id;
+    $('restock-title').textContent = `Bought ${item.name}`;
+    $('restock-current').textContent = Number(item.quantity) === 0
+      ? 'You had run out.' : `You have ${formatQty(item)} now. What you bought is added to that.`;
+    $('restock-unit').textContent = item.unit;
+    $('restock-amount').value = 1;
+    $('restock-dialog').showModal();
+    $('restock-amount').focus();
+    $('restock-amount').select();
+  }
+
+  async function saveRestock(event) {
+    event.preventDefault();
+    const id = state.restockId;
+    const item = state.items.find((i) => i.id === id);
+    const amount = Number($('restock-amount').value);
+    if (!item) return $('restock-dialog').close();
+    if (!(amount >= 0)) return toast('Please enter how much you bought.');
+
+    const before = { quantity: item.quantity, need_to_buy: item.need_to_buy, date_added: item.date_added };
+    const quantity = Number(item.quantity) + amount;
+    $('restock-dialog').close();
+    const ok = await changeItem(id, { quantity, need_to_buy: false, date_added: todayIso() });
+    if (ok) {
+      toast(`${item.name}: now ${formatQty({ quantity, unit: item.unit })}`,
+        { label: 'Undo', run: () => changeItem(id, before) });
+    }
+  }
+
+  async function removeFromList(id) {
+    const item = state.items.find((i) => i.id === id);
+    if (!item) return;
+    const ok = await changeItem(id, { need_to_buy: false });
+    if (ok) {
+      toast(`${item.name}: taken off the list`,
+        { label: 'Undo', run: () => changeItem(id, { need_to_buy: true }) });
+    }
+  }
+
+  function copyBuyList() {
+    const lines = buyItems().map((item) =>
+      `- ${item.name}` + (Number(item.quantity) > 0 ? ` (have ${formatQty(item)})` : ''));
+    copyText('To buy:\n' + lines.join('\n'), 'List copied – paste it into a message.');
+  }
+
+  // ------------------------------------------------------------------
   // Quick actions: −1 and "Used up" (both can be undone from the message)
   // ------------------------------------------------------------------
   async function quickAction(id, action) {
@@ -200,13 +306,15 @@
     if (!item) return;
     const before = { quantity: item.quantity, need_to_buy: item.need_to_buy };
     const quantity = action === 'used-up' ? 0 : Math.max(0, Number(item.quantity) - 1);
-    // Anything that runs out goes on the "need to buy" list.
-    const after = { quantity, need_to_buy: quantity === 0 ? true : item.need_to_buy };
+    // Anything that runs out or drops to its low level goes on the "To buy" list.
+    const addToList = !item.need_to_buy && needsBuying(quantity, item.low_level);
+    const after = { quantity, need_to_buy: item.need_to_buy || addToList };
 
     const ok = await changeItem(id, after);
     if (!ok) return;
-    const message = quantity === 0 ? `${item.name}: used up`
-                                   : `${item.name}: ${formatQty({ quantity, unit: item.unit })} left`;
+    const message = (quantity === 0 ? `${item.name}: used up`
+                                    : `${item.name}: ${formatQty({ quantity, unit: item.unit })} left`) +
+                    (addToList ? ' · added to To buy' : '');
     toast(message, { label: 'Undo', run: () => changeItem(id, before) });
   }
 
@@ -250,6 +358,8 @@
     $('item-quantity').value = item ? item.quantity : 1;
     $('item-unit').value = item ? item.unit : '';
     $('item-date').value = item ? item.date_added : todayIso();
+    $('item-low').value = item && item.low_level !== null ? item.low_level : '';
+    $('item-buy').checked = item ? !!item.need_to_buy : false;
 
     const meta = $('item-meta');
     meta.hidden = !item;
@@ -275,17 +385,33 @@
     $('item-location').value = selectedId || '';
   }
 
+  // Tick or untick "On the To buy list" as the amounts are typed, unless
+  // the person has set the tick themselves.
+  function syncBuyCheckbox() {
+    if (state.touched.buy) return;
+    const original = state.items.find((i) => i.id === state.editingId);
+    const quantity = Number($('item-quantity').value);
+    let onList = original ? !!original.need_to_buy : false;
+    if (needsBuying(quantity, $('item-low').value)) onList = true;
+    else if (original && quantity > Number(original.quantity)) onList = false;   // restocked
+    $('item-buy').checked = onList;
+  }
+
   async function saveItem(event) {
     event.preventDefault();
+    const lowText = $('item-low').value.trim();
     const row = {
       name: $('item-name').value.trim(),
       quantity: Number($('item-quantity').value),
       unit: $('item-unit').value.trim(),
       location_id: $('item-location').value || null,
       date_added: $('item-date').value,
+      low_level: lowText === '' ? null : Number(lowText),
+      need_to_buy: $('item-buy').checked,
     };
     if (!row.name) return toast('Please enter a name.');
     if (!(row.quantity >= 0)) return toast('Quantity must be 0 or more.');
+    if (row.low_level !== null && !(row.low_level >= 0)) return toast('Low level must be 0 or more.');
 
     const saveButton = event.submitter;
     const addAnother = !state.editingId && saveButton && saveButton.value === 'next';
@@ -485,6 +611,28 @@
       render();
     });
 
+    for (const tab of document.querySelectorAll('.tabs [data-view]')) {
+      tab.addEventListener('click', () => setView(tab.dataset.view));
+    }
+
+    $('buy-list').addEventListener('click', (e) => {
+      const card = e.target.closest('.item');
+      if (!card) return;
+      const item = state.items.find((i) => i.id === card.dataset.id);
+      const actionButton = e.target.closest('[data-action]');
+      if (!item) return;
+      if (!actionButton) { if (e.target.closest('.item-open')) openItemDialog(item); }
+      else if (actionButton.dataset.action === 'bought') openRestockDialog(item);
+      else if (actionButton.dataset.action === 'remove') removeFromList(item.id);
+    });
+    $('copy-buy-list').addEventListener('click', copyBuyList);
+    $('restock-form').addEventListener('submit', saveRestock);
+    $('restock-cancel').addEventListener('click', () => $('restock-dialog').close());
+
+    $('item-quantity').addEventListener('input', syncBuyCheckbox);
+    $('item-low').addEventListener('input', syncBuyCheckbox);
+    $('item-buy').addEventListener('change', () => { state.touched.buy = true; });
+
     $('item-list').addEventListener('click', (e) => {
       const card = e.target.closest('.item');
       if (!card) return;
@@ -561,6 +709,25 @@
     el.hidden = false;
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => { el.hidden = true; }, action ? 6000 : 2500);
+  }
+
+  async function copyText(text, doneMessage) {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (_) {
+      // Older phones: fall back to a hidden text box.
+      const box = document.createElement('textarea');
+      box.value = text;
+      box.setAttribute('readonly', '');
+      box.style.position = 'fixed';
+      box.style.opacity = '0';
+      document.body.appendChild(box);
+      box.select();
+      const copied = document.execCommand('copy');
+      box.remove();
+      if (!copied) return toast('Could not copy on this phone.');
+    }
+    toast(doneMessage);
   }
 
   function locationName(id) {

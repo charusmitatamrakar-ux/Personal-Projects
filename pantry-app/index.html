@@ -42,16 +42,35 @@
       </div>
     </header>
 
-    <div class="controls">
-      <input id="search" type="search" placeholder="Search items…" autocomplete="off">
-      <div id="filters" class="chips" role="group" aria-label="Filter by location"></div>
+    <nav class="tabs" role="tablist">
+      <button id="tab-pantry" type="button" role="tab" data-view="pantry" aria-selected="true">Pantry</button>
+      <button id="tab-buy" type="button" role="tab" data-view="buy" aria-selected="false">To buy</button>
+    </nav>
+
+    <!-- Inventory -->
+    <div id="pantry-view">
+      <div class="controls">
+        <input id="search" type="search" placeholder="Search items…" autocomplete="off">
+        <div id="filters" class="chips" role="group" aria-label="Filter by location"></div>
+      </div>
+
+      <p id="summary" class="muted"></p>
+      <div id="item-list"></div>
+      <p id="empty" class="muted center-text" hidden></p>
+
+      <button id="add-item" class="fab" type="button" aria-label="Add item">＋</button>
     </div>
 
-    <p id="summary" class="muted"></p>
-    <div id="item-list"></div>
-    <p id="empty" class="muted center-text" hidden></p>
-
-    <button id="add-item" class="fab" type="button" aria-label="Add item">＋</button>
+    <!-- Need-to-buy list -->
+    <div id="buy-view" hidden>
+      <div class="row buy-header">
+        <p id="buy-summary" class="muted grow"></p>
+        <button id="copy-buy-list" type="button" class="secondary">Copy list</button>
+      </div>
+      <div id="buy-list"></div>
+      <p id="buy-empty" class="muted center-text" hidden>Nothing to buy right now. 🎉<br>
+        Items appear here when they're used up or drop to their low level.</p>
+    </div>
   </section>
 
   <!-- Add / edit item -->
@@ -77,8 +96,18 @@
       <label>Location
         <select id="item-location"></select>
       </label>
-      <label>Date added
-        <input id="item-date" type="date" required>
+      <div class="row">
+        <label class="grow">Date added
+          <input id="item-date" type="date" required>
+        </label>
+        <label class="grow">Low level
+          <input id="item-low" type="number" inputmode="decimal" min="0" step="any" placeholder="optional">
+        </label>
+      </div>
+      <p class="muted small">Low level: it goes on the "To buy" list when it drops to this amount.</p>
+      <label class="check">
+        <input id="item-buy" type="checkbox">
+        On the "To buy" list
       </label>
       <p id="item-meta" class="muted small" hidden></p>
       <div class="row buttons">
@@ -89,6 +118,25 @@
              CSS shows it last. -->
         <button type="submit" class="primary">Save</button>
         <button id="item-save-next" type="submit" class="secondary" value="next">Save + next</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Check off a bought item -->
+  <dialog id="restock-dialog">
+    <form id="restock-form" class="stack">
+      <h2 id="restock-title">Bought</h2>
+      <p id="restock-current" class="muted small"></p>
+      <label>How much did you buy?
+        <span class="row">
+          <input id="restock-amount" class="grow" type="number" inputmode="decimal" min="0" step="any" required>
+          <span id="restock-unit" class="unit-label"></span>
+        </span>
+      </label>
+      <div class="row buttons">
+        <span class="grow"></span>
+        <button id="restock-cancel" type="button" class="ghost">Cancel</button>
+        <button type="submit" class="primary">Add to pantry</button>
       </div>
     </form>
   </dialog>
