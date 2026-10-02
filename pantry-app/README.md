@@ -38,9 +38,9 @@ Website menus change from time to time. If a button isn't exactly where these st
 
 ### Step 2: Set up the database
 
-1. In this GitHub repository, open the file `pantry-app/supabase/setup.sql`, then click the **copy** icon (two overlapping squares, top right of the file).
+1. In this GitHub repository, open the `pantry-app` folder, then `supabase`, then click the file `setup.sql`. Then click the **copy** icon (two overlapping squares, top right of the file's text). This copies the file's **contents**, about 200 lines starting with `-- ====`. Don't type or paste the file's *name* into Supabase; that gives a "syntax error at or near pantry" message.
 2. In Supabase, click **SQL Editor** in the left sidebar (the icon looks like `>_`).
-3. Paste everything into the big empty box.
+3. Clear anything already in the big box, then paste.
 4. Near the top, find these two lines and **replace the example emails with your real ones**. Keep the quote marks.
    ```sql
      ('your-email@example.com'),        -- ← change to your email
