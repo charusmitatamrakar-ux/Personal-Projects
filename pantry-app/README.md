@@ -5,9 +5,9 @@ A shared pantry list for two phones. Track what food you have, where it's kept, 
 - **Where the data lives:** [Supabase](https://supabase.com), a free online database that also handles the logins and keeps both phones in sync.
 - **Where the app lives:** GitHub Pages, free hosting run by GitHub. It updates by itself whenever the code in this folder changes.
 
-> **Build progress:** Phase 1 (basic inventory) and Phase 2 (quick actions and
-> fast entry) are done. Still to come: the "need to buy" list (Phase 3), and the
-> meal-plan button plus a home-screen icon (Phase 4).
+> **Build progress:** Phases 1–3 are done: basic inventory, quick actions and
+> fast entry, and the "To buy" list. Still to come: the meal-plan button plus a
+> home-screen icon (Phase 4).
 
 ---
 
@@ -131,13 +131,22 @@ Try these on your phone:
 
 - [ ] On an item, tap **−1**. The amount goes down by one, and a message at the bottom shows how much is left.
 - [ ] Tap **Undo** in that message. The amount goes back.
-- [ ] Tap **Used up** on an item. It shows "Used up" in red, and its buttons disappear. (In Phase 3 these items will appear on the "need to buy" list.)
-- [ ] To restock a used-up item for now, tap it and type a new quantity.
+- [ ] Tap **Used up** on an item. It shows "Used up" in red, and its buttons disappear. It also goes on the **To buy** list (see Phase 3).
 - [ ] Tap **＋** and type the first letters of something you've added before, for example `ri`. Suggestions appear under the name box; tap one. The name, unit and usual location fill in, and the cursor jumps to Quantity.
 - [ ] Type a full name you've used before (for example `rice`) and move to the next box. The unit and location fill in too.
 - [ ] If the item is already in your pantry, a note says so, with an **Open it** link to edit the existing entry instead of adding a duplicate.
 - [ ] Use **Save + next** to add several items in a row. The form stays open, keeps the same location, and clears the name.
 - [ ] Check that both phones see the −1 / Used up changes.
+
+## Testing Phase 3
+
+- [ ] Tap **Used up** on an item, then open the **To buy** tab. The item is listed there, and the tab shows a red number.
+- [ ] Tap **✓ Bought**, enter how much you bought, and tap **Add to pantry**. It leaves the list, the amount is added to what you had, and "Date added" becomes today. **Undo** puts everything back.
+- [ ] Tap **✕** on an item in the list. It comes off the list without changing the amount, for when you've decided not to buy it.
+- [ ] **Low level:** edit an item, for example Rice at 2 kg, and set **Low level** to `1`. Tap **−1**. Now at 1 kg, it goes on the list automatically, and the message says "added to To buy".
+- [ ] In the edit form, the **On the "To buy" list** box ticks and unticks itself as you change the amounts. You can also tick it by hand to add something you're running low on.
+- [ ] On the **To buy** tab, tap **Copy list**, then paste it into a text message or notes app.
+- [ ] Check that both phones see the same list.
 
 ---
 
