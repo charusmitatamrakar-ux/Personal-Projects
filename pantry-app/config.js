@@ -10,6 +10,6 @@
 //  "service_role" key here.
 // =====================================================================
 window.PANTRY_CONFIG = {
-  supabaseUrl: 'PASTE_YOUR_PROJECT_URL_HERE',
-  supabaseKey: 'PASTE_YOUR_PUBLISHABLE_KEY_HERE',
+  supabaseUrl: 'https://ecsuvpznzuwffxgtnovn.supabase.co',
+  supabaseKey: 'sb_publishable_5G_KUIJ8W8L1ImLb7UGzRg_Hanw0wBh',
 };
