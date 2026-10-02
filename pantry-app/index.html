@@ -58,9 +58,14 @@
   <dialog id="item-dialog">
     <form id="item-form" class="stack">
       <h2 id="item-dialog-title">Add item</h2>
-      <label>Name
-        <input id="item-name" required maxlength="80" autocomplete="off">
-      </label>
+      <div class="name-field">
+        <label>Name
+          <input id="item-name" required maxlength="80" autocomplete="off"
+                 autocapitalize="sentences" enterkeyhint="next">
+        </label>
+        <ul id="name-suggestions" class="suggestions" hidden></ul>
+        <p id="name-hint" class="hint small" hidden></p>
+      </div>
       <div class="row">
         <label class="grow">Quantity
           <input id="item-quantity" type="number" inputmode="decimal" min="0" step="any" required>
@@ -80,7 +85,10 @@
         <button id="item-delete" type="button" class="danger" hidden>Delete</button>
         <span class="grow"></span>
         <button id="item-cancel" type="button" class="ghost">Cancel</button>
+        <!-- Save comes first so the keyboard's Enter/Go key means plain Save;
+             CSS shows it last. -->
         <button type="submit" class="primary">Save</button>
+        <button id="item-save-next" type="submit" class="secondary" value="next">Save + next</button>
       </div>
     </form>
   </dialog>
