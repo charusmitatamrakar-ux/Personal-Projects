@@ -138,8 +138,6 @@ button:disabled { opacity: 0.5; }
   gap: 8px;
   margin-bottom: 12px;
 }
-.topbar-actions { display: flex; }
-.topbar-actions button { padding: 8px 10px; }
 
 .controls {
   position: sticky;
@@ -214,6 +212,77 @@ button:disabled { opacity: 0.5; }
 .item.used-up .item-name,
 .item.used-up .item-qty { color: var(--muted); }
 .item.used-up .item-qty { color: var(--danger); font-weight: 500; font-size: 0.85rem; }
+
+/* ---------- Menu ---------- */
+.menu { position: relative; }
+.menu-list {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 5;
+  min-width: 200px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+}
+.menu-list button { background: transparent; color: var(--text); text-align: left; border-radius: 8px; }
+.menu-list button:active { background: var(--chip); }
+.menu-list #sign-out { color: var(--danger); }
+
+/* ---------- Import / export ---------- */
+dialog.full {
+  width: 100%;
+  max-width: 720px;
+  height: 100%;
+  max-height: 100%;
+  margin: 0 auto;
+  border-radius: 0;
+  padding: max(16px, env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
+}
+@media (min-width: 760px) {
+  dialog.full { height: auto; max-height: 92vh; margin: auto; border-radius: 16px; }
+}
+h3 { font-size: 1rem; margin: 0; }
+.import-section { border-top: 1px solid var(--line); padding-top: 14px; }
+textarea.csv { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 14px; white-space: pre; overflow-wrap: normal; overflow-x: auto; }
+.import-summary { margin: 0; font-weight: 600; }
+.import-summary .bad { color: var(--danger); }
+
+/* Each preview row is a small card: action, item and ✕ on top; amount,
+   unit and location below; then what will happen. */
+.import-table, .import-table tbody { display: block; width: 100%; }
+.import-table thead { display: none; }
+.import-table tr {
+  display: grid;
+  grid-template-columns: 7.5em 1fr 1fr 44px;
+  grid-template-areas:
+    "action item item del"
+    "qty unit loc loc"
+    "result result result result";
+  gap: 6px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: 10px;
+  padding: 8px;
+  margin-bottom: 8px;
+}
+.import-table tr.has-error { border-left-color: var(--danger); }
+.import-table td { padding: 0; min-width: 0; }
+.import-table td.c-action { grid-area: action; }
+.import-table td.c-item { grid-area: item; }
+.import-table td.c-qty { grid-area: qty; }
+.import-table td.c-unit { grid-area: unit; }
+.import-table td.c-loc { grid-area: loc; }
+.import-table td.c-del { grid-area: del; }
+.import-table td.c-result { grid-area: result; font-size: 0.85rem; color: var(--muted); }
+.import-table tr.has-error td.c-result { color: var(--danger); }
+.import-table input, .import-table select { min-height: 40px; padding: 6px 8px; }
+.import-table td.c-del button { width: 44px; min-height: 40px; padding: 0; background: transparent; color: var(--muted); }
 
 /* ---------- Tabs ---------- */
 .tabs {
