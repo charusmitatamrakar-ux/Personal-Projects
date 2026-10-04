@@ -19,6 +19,7 @@
     editingId: null,      // id of the item open in the dialog (null = adding)
     touched: {},          // which form fields the person changed by hand
     restockId: null,      // id of the item open in the "Bought" dialog
+    importRows: [],       // rows in the import preview (editable)
     channel: null,
   };
 
@@ -111,6 +112,7 @@
     }
     render();
     if ($('locations-dialog').open) renderLocationList();
+    if ($('import-dialog').open && state.importRows.length) updateImportResults();
   }
 
   let reloadTimer = null;
@@ -353,6 +355,290 @@
   function copyMealPlan() {
     storageSet(NOTES_KEY, $('meal-notes').value.trim());
     copyText(mealPlanText(), 'Copied! Now tap "Open Claude" and paste.');
+  }
+
+  // ------------------------------------------------------------------
+  // Import / export as CSV text: action,item,quantity,unit,location
+  // ------------------------------------------------------------------
+  const CSV_FIELDS = ['action', 'item', 'quantity', 'unit', 'location'];
+
+  function openImportDialog() {
+    $('location-options').innerHTML = state.locations.map((l) => `<option value="${esc(l.name)}">`).join('');
+    renderImportTable();
+    $('import-dialog').showModal();
+  }
+
+  // Export: one "add" line per item in stock, so it can be imported again.
+  function exportCsv() {
+    const lines = state.items
+      .filter((i) => Number(i.quantity) > 0)
+      .map((i) => ['add', i.name, roundQty(i.quantity), i.unit, locationName(i.location_id)].map(csvField).join(','));
+    if (!lines.length) return toast('Nothing in stock to export.');
+    copyText([CSV_FIELDS.join(',')].concat(lines).join('\n'),
+      `Copied ${lines.length} item${lines.length === 1 ? '' : 's'} as CSV.`);
+  }
+
+  function csvField(value) {
+    const text = String(value == null ? '' : value);
+    return /[",\n\t]/.test(text) ? '"' + text.replace(/"/g, '""') + '"' : text;
+  }
+
+  // Split one line into fields. Handles "quoted, values" and "" inside quotes.
+  // Lines copied from a spreadsheet use tabs instead of commas; both work.
+  function splitCsvLine(line) {
+    const delimiter = line.includes('\t') && !line.includes(',') ? '\t' : ',';
+    const fields = [];
+    let field = '';
+    let quoted = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (quoted) {
+        if (c === '"' && line[i + 1] === '"') { field += '"'; i++; }
+        else if (c === '"') quoted = false;
+        else field += c;
+      } else if (c === '"' && field.trim() === '') { quoted = true; field = ''; }
+      else if (c === delimiter) { fields.push(field); field = ''; }
+      else field += c;
+    }
+    fields.push(field);
+    return { fields: fields.map((f) => f.trim()), unclosedQuote: quoted };
+  }
+
+  // Turn the pasted text into editable rows (bad lines included, with a note).
+  function parseImportText(text) {
+    const rows = [];
+    text.split(/\r?\n/).forEach((line, index) => {
+      if (!line.trim()) return;
+      const { fields, unclosedQuote } = splitCsvLine(line);
+      if (fields.every((f) => f === '')) return;
+      const isHeader = !rows.length && fields[0].toLowerCase() === 'action' &&
+                       (fields[1] || '').toLowerCase() === 'item';
+      if (isHeader) return;
+
+      const row = { line: index + 1, formatError: '' };
+      CSV_FIELDS.forEach((name, i) => { row[name] = fields[i] || ''; });
+      if (unclosedQuote) {
+        row.formatError = 'A quote mark (") is opened but never closed.';
+      } else if (fields.length !== CSV_FIELDS.length) {
+        row.formatError = `Needs 5 values (action,item,quantity,unit,location) but has ${fields.length}.` +
+          (fields.length > 5 ? ' If a name contains a comma, put it in "quotes".' : '');
+      }
+      rows.push(row);
+    });
+    return rows;
+  }
+
+  // Problems with a single row, before looking at the pantry. '' = fine.
+  function rowFormatProblem(row) {
+    if (row.formatError) return row.formatError;
+    const action = row.action.trim().toLowerCase();
+    if (action !== 'add' && action !== 'remove') {
+      return row.action.trim() ? `Action must be "add" or "remove", not "${row.action.trim()}".`
+                               : 'Action is missing (use "add" or "remove").';
+    }
+    if (!row.item.trim()) return 'Item name is missing.';
+    if (row.item.trim().length > 80) return 'Item name is too long (80 characters at most).';
+    const quantity = row.quantity.trim();
+    if (!/^\d*\.?\d+$/.test(quantity) || !(Number(quantity) > 0)) {
+      return quantity ? `Quantity must be a number above 0, not "${quantity}".` : 'Quantity is missing.';
+    }
+    if (row.unit.trim().length > 20) return 'Unit is too long (20 characters at most).';
+    if (row.location.trim().length > 40) return 'Location is too long (40 characters at most).';
+    return '';
+  }
+
+  // Work out what every row will do, in order, as if it had already been
+  // applied: two "add rice" lines add up. Nothing is saved here.
+  function planImport(rows) {
+    const items = state.items.map((i) => ({ ...i }));
+    const created = [];                 // new items, not saved yet
+    const changed = new Map();          // existing item id -> working copy
+    const newLocations = new Map();     // lower-case name -> name as typed
+    const placeName = (id) => (String(id).startsWith('new:') ? newLocations.get(id.slice(4)) : locationName(id)) || 'No location';
+    const amount = (qty, unit) => formatQty({ quantity: roundQty(qty), unit });
+
+    const results = rows.map((row) => {
+      const problem = rowFormatProblem(row);
+      if (problem) return { error: problem };
+
+      const action = row.action.trim().toLowerCase();
+      const name = row.item.trim();
+      const quantity = Number(row.quantity);
+      const unit = row.unit.trim();
+      const locText = row.location.trim();
+
+      // Location: an existing one (any capitalisation), or a new one to create.
+      let locationId;
+      if (locText) {
+        const known = state.locations.find((l) => l.name.toLowerCase() === locText.toLowerCase());
+        locationId = known ? known.id : 'new:' + locText.toLowerCase();
+      }
+
+      // Same name (any capitalisation), and the same location if one was given.
+      const matches = items.concat(created).filter((i) => nameKey(i.name) === nameKey(name) &&
+        (!locText || (i.location_id || null) === locationId));
+      if (!locText && matches.length > 1) {
+        return { error: `You have ${name} in more than one place (${matches.map((m) => placeName(m.location_id)).join(', ')}). Add the location.` };
+      }
+      const target = matches[0];
+      if (target && unit && target.unit && unit.toLowerCase() !== target.unit.toLowerCase()) {
+        return { error: `Unit doesn't match: you keep ${target.name} in "${target.unit}", not "${unit}".` };
+      }
+
+      if (action === 'add' && !target) {
+        if (locationId && locationId.startsWith('new:') && !newLocations.has(locationId.slice(4))) {
+          newLocations.set(locationId.slice(4), locText);
+        }
+        // No location given: use where it usually goes.
+        const memory = state.memory.find((m) => m.name_key === nameKey(name));
+        const item = {
+          id: 'new-item-' + created.length, name, quantity, low_level: null, need_to_buy: false,
+          unit: unit || (memory ? memory.unit : ''),
+          location_id: locText ? locationId : (memory && locationName(memory.location_id) ? memory.location_id : null),
+        };
+        created.push(item);
+        return { ok: true, message: `New item · ${placeName(item.location_id)}` +
+          (locationId && locationId.startsWith('new:') ? ' (new location)' : '') + ` · ${amount(quantity, item.unit)}` };
+      }
+
+      if (!target) {
+        return { error: `${name} isn't in your pantry${locText ? ' in ' + locText : ''}, so there's nothing to remove.` };
+      }
+
+      if (!String(target.id).startsWith('new-item-')) changed.set(target.id, target);
+      if (!target.unit && unit) target.unit = unit;
+      const before = Number(target.quantity);
+      const where = placeName(target.location_id);
+
+      if (action === 'add') {
+        target.quantity = roundQty(before + quantity);
+        target.restocked = true;
+        if (target.need_to_buy && !needsBuying(target.quantity, target.low_level)) target.need_to_buy = false;
+        return { ok: true, message: `Add to ${target.name} · ${where} · ${amount(before, target.unit)} → ${amount(target.quantity, target.unit)}` };
+      }
+
+      target.quantity = roundQty(Math.max(0, before - quantity));
+      const nowOnList = !target.need_to_buy && needsBuying(target.quantity, target.low_level);
+      if (nowOnList) target.need_to_buy = true;
+      return { ok: true, message: `Remove from ${target.name} · ${where} · ${amount(before, target.unit)} → ` +
+        (target.quantity === 0 ? 'used up' : amount(target.quantity, target.unit)) +
+        (quantity > before ? ` (you only had ${amount(before, target.unit)})` : '') +
+        (nowOnList ? ' · goes on To buy' : '') };
+    });
+
+    return { results, created, changed: [...changed.values()], newLocations: [...newLocations.values()] };
+  }
+
+  function roundQty(value) {
+    return Math.round(Number(value) * 1000) / 1000;
+  }
+
+  function showImportPreview() {
+    state.importRows = parseImportText($('import-text').value);
+    if (!state.importRows.length) return toast('Paste some lines first.');
+    renderImportTable();
+    $('import-review').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function renderImportTable() {
+    const rows = state.importRows;
+    $('import-review').hidden = !rows.length;
+    $('import-table').tBodies[0].innerHTML = rows.map((row, index) => {
+      const action = row.action.trim().toLowerCase();
+      const odd = action !== 'add' && action !== 'remove';
+      return `
+        <tr data-index="${index}">
+          <td class="c-action"><select data-field="action" aria-label="Action">
+            ${odd ? `<option value="${esc(row.action)}" selected>${esc(row.action || '(missing)')}</option>` : ''}
+            <option value="add"${action === 'add' ? ' selected' : ''}>add</option>
+            <option value="remove"${action === 'remove' ? ' selected' : ''}>remove</option>
+          </select></td>
+          <td class="c-item"><input data-field="item" value="${esc(row.item)}" placeholder="item" aria-label="Item"></td>
+          <td class="c-qty"><input data-field="quantity" value="${esc(row.quantity)}" placeholder="qty" inputmode="decimal" aria-label="Quantity"></td>
+          <td class="c-unit"><input data-field="unit" value="${esc(row.unit)}" placeholder="unit" list="unit-options" aria-label="Unit"></td>
+          <td class="c-loc"><input data-field="location" value="${esc(row.location)}" placeholder="location" list="location-options" aria-label="Location"></td>
+          <td class="c-result"></td>
+          <td class="c-del"><button type="button" data-delete aria-label="Remove this row">✕</button></td>
+        </tr>`;
+    }).join('');
+    updateImportResults();
+  }
+
+  // Refresh the "what will happen" text without redrawing the inputs.
+  function updateImportResults() {
+    const { results } = planImport(state.importRows);
+    const rowsEls = $('import-table').tBodies[0].rows;
+    results.forEach((result, i) => {
+      const tr = rowsEls[i];
+      tr.classList.toggle('has-error', !!result.error);
+      tr.querySelector('.c-result').textContent =
+        `Line ${state.importRows[i].line}: ` + (result.error ? '⚠ ' + result.error : result.message);
+    });
+    const good = results.filter((r) => r.ok).length;
+    const bad = results.length - good;
+    $('import-summary').innerHTML = `${good} row${good === 1 ? '' : 's'} ready` +
+      (bad ? ` · <span class="bad">${bad} need${bad === 1 ? 's' : ''} fixing</span>` : '');
+    $('import-confirm').textContent = `Import ${good} row${good === 1 ? '' : 's'}`;
+    $('import-confirm').disabled = good === 0;
+  }
+
+  function editImportRow(event) {
+    const field = event.target.dataset.field;
+    const tr = event.target.closest('tr');
+    if (!field || !tr) return;
+    const row = state.importRows[Number(tr.dataset.index)];
+    row[field] = event.target.value;
+    row.formatError = '';   // once edited in the table, the columns are what you see
+    updateImportResults();
+  }
+
+  async function confirmImport() {
+    const button = $('import-confirm');
+    button.disabled = true;
+    try {
+      await loadAll();                       // plan against the latest list
+      let plan = planImport(state.importRows);
+      const good = plan.results.filter((r) => r.ok).length;
+      if (!good) return updateImportResults();
+
+      // 1. New locations first, so new items can be put in them.
+      if (plan.newLocations.length) {
+        const start = state.locations.reduce((max, l) => Math.max(max, l.sort_order), 0) + 1;
+        const { error } = await sb.from('locations')
+          .insert(plan.newLocations.map((name, i) => ({ name, sort_order: start + i })));
+        if (error) return toast('Could not create locations: ' + errorText(error));
+        await loadAll();
+        plan = planImport(state.importRows);   // now the locations exist
+      }
+
+      // 2. New items, and 3. changes to existing ones.
+      const today = todayIso();
+      const saves = [];
+      if (plan.created.length) {
+        saves.push(sb.from('items').insert(plan.created.map((i) => ({
+          name: i.name, quantity: i.quantity, unit: i.unit, location_id: i.location_id,
+          date_added: today, need_to_buy: i.need_to_buy,
+        }))));
+      }
+      for (const item of plan.changed) {
+        const changes = { quantity: item.quantity, unit: item.unit, need_to_buy: item.need_to_buy };
+        if (item.restocked) changes.date_added = today;
+        saves.push(sb.from('items').update(changes).eq('id', item.id));
+      }
+      const failed = (await Promise.all(saves)).find((r) => r.error);
+      await loadAll();
+      if (failed) return toast('Some rows could not be saved: ' + errorText(failed.error));
+
+      // Keep only the rows that still need fixing.
+      const imported = plan.results.filter((r) => r.ok).length;
+      state.importRows = state.importRows.filter((_, i) => plan.results[i].error);
+      renderImportTable();
+      $('import-text').value = '';
+      toast(`Imported ${imported} row${imported === 1 ? '' : 's'}.` +
+        (state.importRows.length ? ` ${state.importRows.length} still need fixing.` : ''));
+    } finally {
+      button.disabled = !planImport(state.importRows).results.some((r) => r.ok);
+    }
   }
 
   // ------------------------------------------------------------------
@@ -776,6 +1062,39 @@
     });
     $('item-unit').addEventListener('input', () => { state.touched.unit = true; });
     $('item-location').addEventListener('change', () => { state.touched.location = true; });
+
+    // Menu (top right)
+    const closeMenu = () => {
+      $('menu-list').hidden = true;
+      $('menu-button').setAttribute('aria-expanded', 'false');
+    };
+    $('menu-button').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const open = $('menu-list').hidden;
+      $('menu-list').hidden = !open;
+      $('menu-button').setAttribute('aria-expanded', String(open));
+    });
+    $('menu-list').addEventListener('click', closeMenu);
+    document.addEventListener('click', (e) => { if (!e.target.closest('.menu')) closeMenu(); });
+
+    $('open-import').addEventListener('click', openImportDialog);
+    $('import-close').addEventListener('click', () => $('import-dialog').close());
+    $('export-csv').addEventListener('click', exportCsv);
+    $('import-preview').addEventListener('click', showImportPreview);
+    $('import-clear').addEventListener('click', () => {
+      $('import-text').value = '';
+      state.importRows = [];
+      renderImportTable();
+    });
+    $('import-table').addEventListener('input', editImportRow);
+    $('import-table').addEventListener('change', editImportRow);
+    $('import-table').addEventListener('click', (e) => {
+      const button = e.target.closest('[data-delete]');
+      if (!button) return;
+      state.importRows.splice(Number(button.closest('tr').dataset.index), 1);
+      renderImportTable();
+    });
+    $('import-confirm').addEventListener('click', confirmImport);
 
     $('open-locations').addEventListener('click', openLocationsDialog);
     $('locations-close').addEventListener('click', () => $('locations-dialog').close());

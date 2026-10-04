@@ -43,9 +43,14 @@
   <section id="main-screen" class="screen" hidden>
     <header class="topbar">
       <h1>🥫 Pantry</h1>
-      <div class="topbar-actions">
-        <button id="open-locations" class="ghost" type="button">Locations</button>
-        <button id="sign-out" class="ghost" type="button">Log out</button>
+      <div class="menu">
+        <button id="menu-button" class="ghost" type="button" aria-haspopup="true"
+                aria-expanded="false" aria-controls="menu-list">Menu ▾</button>
+        <div id="menu-list" class="menu-list" hidden>
+          <button id="open-locations" type="button">Storage locations</button>
+          <button id="open-import" type="button">Import / export</button>
+          <button id="sign-out" type="button">Log out</button>
+        </div>
       </div>
     </header>
 
@@ -178,6 +183,55 @@
       </div>
     </div>
   </dialog>
+
+  <!-- Bulk import from CSV text, and export -->
+  <dialog id="import-dialog" class="full">
+    <div class="stack">
+      <div class="row buttons">
+        <h2 class="grow">Import / export</h2>
+        <button id="import-close" type="button" class="ghost">Close</button>
+      </div>
+
+      <section class="stack import-section">
+        <h3>Export</h3>
+        <p class="muted small">Copies every item you have in stock as CSV text, one line each,
+          in the same format the import uses.</p>
+        <div><button id="export-csv" type="button" class="secondary">Export inventory</button></div>
+      </section>
+
+      <section class="stack import-section">
+        <h3>Import</h3>
+        <p class="muted small">Paste one line per item:
+          <code>action,item,quantity,unit,location</code><br>
+          <b>add</b> adds to an item with the same name and location, or creates it.
+          <b>remove</b> takes away, and anything that reaches 0 goes on the To buy list.
+          Unit and location can be left empty. A header line is skipped.</p>
+        <textarea id="import-text" class="csv" rows="8" spellcheck="false" autocapitalize="off"
+          placeholder="add,Rice,2,kg,Pantry shelf&#10;add,Milk,1,L,Fridge&#10;remove,Eggs,6,pcs,Fridge"></textarea>
+        <div class="row">
+          <button id="import-preview" type="button" class="primary">Preview</button>
+          <button id="import-clear" type="button" class="ghost">Clear</button>
+        </div>
+      </section>
+
+      <section id="import-review" class="stack" hidden>
+        <h3>Check before importing</h3>
+        <p class="muted small">Fix or remove rows here. Rows with a problem are skipped,
+          and the rest are imported.</p>
+        <p id="import-summary" class="import-summary"></p>
+        <table id="import-table" class="import-table">
+          <thead><tr><th>Action</th><th>Item</th><th>Quantity</th><th>Unit</th><th>Location</th><th>Result</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <div class="row buttons">
+          <span class="grow"></span>
+          <button id="import-confirm" type="button" class="primary">Import</button>
+        </div>
+      </section>
+    </div>
+  </dialog>
+
+  <datalist id="location-options"></datalist>
 
   <datalist id="unit-options">
     <option value="pcs"><option value="g"><option value="kg">

@@ -18,7 +18,7 @@ A shared pantry list for two phones. Track what food you have, where it's kept a
 - **Used some:** tap **−1** on the item. Ran out: tap **Used up**. Mis-tapped? Tap **Undo** in the message at the bottom.
 - **Change or delete an item:** tap its name.
 - **Find things:** use the search box, or the location buttons (Pantry shelf, Fridge, …) to see one place at a time.
-- **Your own locations:** tap **Locations** at the top to add, rename or delete them.
+- **Your own locations:** tap **Menu → Storage locations** to add, rename or delete them.
 
 ### The "To buy" list
 - Items land on the **To buy** tab by themselves when they're **used up**, or when they drop to their **low level**. Set a low level in an item's edit form, for example "rice: 1 kg".
@@ -32,6 +32,28 @@ A shared pantry list for two phones. Track what food you have, where it's kept a
 3. Tap **Copy**, then **Open Claude**, and paste into a new chat.
 
 What gets copied: everything currently in stock, grouped by location with the date each item was added, plus a request for a **7-day meal plan for 2 people** that uses older and perishable food first, and a **shopping list** of extras. It also mentions what's already on your To buy list. Tap **Preview what gets copied** to see the exact text.
+
+### Import and export many items at once
+Open **Menu → Import / export**.
+
+**Import:** paste CSV text with one line per change, in this order:
+
+```
+action,item,quantity,unit,location
+add,Rice,2,kg,Pantry shelf
+add,Milk,1,L,Fridge
+remove,Eggs,6,pcs,Fridge
+```
+
+- **add** adds to an item with the same name and location. Capital letters don't matter: `rice` matches `Rice`. If there's no such item, a new one is created.
+- **remove** subtracts. An item that reaches 0 (or its low level) goes on the **To buy** list. It never goes below 0.
+- **Unit** and **location** can be left empty: `remove,Eggs,6,,`. With no location, the item is found wherever it is; if you have it in two places, the row asks you to add the location. A new item with no location goes where that item usually goes.
+- A location that doesn't exist yet, like `Garage`, is created for you. The preview says "(new location)", so you can catch typos.
+- Lines copied straight from a spreadsheet (tab-separated) work too. A name with a comma needs quotes: `add,"Beans, black",2,cans,Pantry shelf`. A first line of `action,item,…` is skipped.
+
+Tap **Preview** to see every line as an editable row, with what will happen underneath ("Rice · Pantry shelf · 2 kg → 3 kg"). Rows with a problem are marked in red with the reason. Fix them in place or delete them with ✕. **Import** saves all the good rows, and only the rows that still need fixing stay on screen. Nothing is saved until you tap **Import**.
+
+**Export inventory** copies everything in stock in the same format, for a backup or to edit in a spreadsheet. Importing an export into a pantry that already has those items *adds* to them, so the amounts double. Use it on an empty pantry, or edit the amounts first.
 
 ### Two phones
 Changes made on one phone show up on the other within a few seconds. Each of you logs in with your own email, and the edit form shows who added or last changed an item.
@@ -152,7 +174,7 @@ Go through this list after setting up, or after a big update.
 - [ ] Log in. Add "Rice, 2, kg, Pantry shelf". It appears under *Pantry shelf*.
 - [ ] Location buttons and the search box narrow the list.
 - [ ] Tap an item, change the amount, and **Save**. Then try **Delete** on a test item.
-- [ ] **Locations:** add, rename and delete one. Items from a deleted location move to "No location".
+- [ ] **Menu → Storage locations:** add, rename and delete one. Items from a deleted location move to "No location".
 - [ ] **Sync:** with the app open on both phones, add an item on one. It appears on the other within a few seconds.
 
 **Quick actions and fast entry**
@@ -166,6 +188,18 @@ Go through this list after setting up, or after a big update.
 - [ ] Give Rice a **Low level** of `1`, then tap **−1** until it reaches 1 kg. It joins the list, and the message says "added to To buy".
 - [ ] **✓ Bought** with an amount adds it back, and the item leaves the list. **✕** removes it without buying.
 - [ ] **Copy list** and paste it into a message.
+
+**Import / export**
+- [ ] **Menu → Import / export**, then paste:
+  ```
+  add,rice,1,kg,pantry shelf
+  remove,Milk,1,,
+  add,Flour,1,kg,Garage
+  buy,Bread,1,,
+  ```
+  Then tap **Preview**. The first three rows say what will happen (Rice goes up, Milk goes down, Flour is new in a new "Garage" location). The **buy** row is red: "Action must be "add" or "remove"".
+- [ ] Change that row's action to **add** in the preview. It turns OK. Tap **Import** and check the pantry.
+- [ ] **Export inventory**, then paste into a notes app. There's one `add,…` line per item.
 
 **Meal planning**
 - [ ] **🍽 Plan meals**, add a note, then **Copy** and **Open Claude**. Paste, and Claude replies with a 7-day plan and a shopping list.
@@ -207,7 +241,7 @@ Go through this list after setting up, or after a big update.
 |---|---|
 | `index.html` | The screens: login, pantry, To buy, and the forms. |
 | `styles.css` | Colours and layout. Dark mode follows your phone's setting. |
-| `app.js` | Everything the app does. |
+| `app.js` | Everything the app does, including the CSV import/export. |
 | `config.js` | Your Supabase address and key. **The only file you need to edit.** |
 | `manifest.webmanifest`, `icons/` | The app's name and icon for home screens. |
 | `sw.js` | Keeps a copy of the app on the phone so it opens without signal. |
